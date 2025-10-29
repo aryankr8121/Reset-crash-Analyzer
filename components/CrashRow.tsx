@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { CrashDataRow, LogEntry, JiraTicket, FormattedJiraIssue } from '../types';
 import { fetchLogs, fetchSimilarTickets, createJiraTicket } from '../services/mockApi';
 import { formatJiraIssue } from '../utils/jiraFormatter';
-import { ChevronDownIcon, MinusIcon, PlusIcon } from './icons';
+import { ChevronDownIcon, MinusIcon, PlusIcon, ClipboardIcon, ClipboardCheckIcon } from './icons';
 import Spinner from './Spinner';
 
 interface CrashRowProps {
@@ -40,10 +40,12 @@ const CrashRow: React.FC<CrashRowProps> = ({ rowData, index, isSelected, onSelec
   const [jiraPreview, setJiraPreview] = useState<FormattedJiraIssue | null>(null);
   const [isCreatingTicket, setIsCreatingTicket] = useState(false);
   const [ticketCreationStatus, setTicketCreationStatus] = useState<{success: boolean, message: string} | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
+
 
   useEffect(() => {
     const serviceData = parseRecoveryEvent(rowData.reset_reason || "");
-    let defaultRegex = "Service failure";
+    let defaultRegex = "Service failure|oom-kill|SIGKILL|segfault|SIGSEGV|cgroup out of memory";
     if (serviceData.exit_code === 9) {
       defaultRegex = "Service failure|oom-kill|SIGKILL|cgroup out of memory";
     } else if (serviceData.exit_code === 11) {
@@ -89,6 +91,18 @@ const CrashRow: React.FC<CrashRowProps> = ({ rowData, index, isSelected, onSelec
   const handleLogSelection = (msg: string) => {
     setSelectedLogs(prev => prev.includes(msg) ? prev.filter(m => m !== msg) : [...prev, msg]);
   }
+  
+  const handleCopyToClipboard = () => {
+    if (!jiraPreview) return;
+    
+    const textToCopy = `Summary: ${jiraPreview.summary}\n\nDescription:\n${jiraPreview.description}`;
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+    }).catch(err => {
+        console.error('Failed to copy text: ', err);
+    });
+  };
 
   return (
     <div className={`bg-gray-800/60 border rounded-lg overflow-hidden transition-colors ${isSelected ? 'border-cyan-500' : 'border-gray-700'}`}>
@@ -149,14 +163,20 @@ const CrashRow: React.FC<CrashRowProps> = ({ rowData, index, isSelected, onSelec
 
           {/* Log Filtering */}
           <section>
-            <h3 className="text-xl font-semibold mb-3 text-gray-300">Log Analysis</h3>
+            <h3 className="text-xl font-semibold mb-3 text-gray-300 flex items-center">
+              Log Analysis
+              {isLoadingLogs && <Spinner size="sm" className="ml-3" />}
+            </h3>
             <input
               type="text"
               value={payloadRegex}
               onChange={(e) => setPayloadRegex(e.target.value)}
-              className="w-full p-2 bg-gray-900/70 border border-gray-600 rounded-md focus:ring-cyan-500 focus:border-cyan-500 font-mono"
+              className="w-full p-2 bg-gray-900/70 border border-gray-600 rounded-md focus:ring-cyan-500 focus:border-cyan-500 font-mono disabled:opacity-50"
+              disabled={isLoadingLogs}
             />
-            {isLoadingLogs ? <Spinner text="Loading logs..."/> : (
+            {isLoadingLogs ? (
+                <div className="flex items-center justify-center my-4 text-gray-400">Loading logs...</div>
+            ) : (
               logs.length > 0 ? (
                 <div className="mt-4 max-h-96 overflow-y-auto bg-gray-900/50 p-2 rounded-md border border-gray-700">
                   <p className="text-sm text-gray-400 mb-2">Select log lines for Jira description:</p>
@@ -173,8 +193,13 @@ const CrashRow: React.FC<CrashRowProps> = ({ rowData, index, isSelected, onSelec
 
           {/* Similar Tickets */}
           <section>
-             <h3 className="text-xl font-semibold mb-3 text-gray-300">Similar Jira Tickets</h3>
-             {isLoadingTickets ? <Spinner text="Fetching similar tickets..."/> : (
+             <h3 className="text-xl font-semibold mb-3 text-gray-300 flex items-center">
+                Similar Jira Tickets
+                {isLoadingTickets && <Spinner size="sm" className="ml-3" />}
+             </h3>
+             {isLoadingTickets ? (
+                <div className="flex items-center justify-center my-4 text-gray-400">Fetching similar tickets...</div>
+             ) : (
                  similarTickets.length > 0 ? (
                     <div className="overflow-x-auto bg-gray-900/50 p-2 rounded-md border border-gray-700">
                         <table className="min-w-full text-sm text-left">
@@ -202,13 +227,32 @@ const CrashRow: React.FC<CrashRowProps> = ({ rowData, index, isSelected, onSelec
 
           {/* Jira Preview & Creation */}
           <section>
-             <h3 className="text-xl font-semibold mb-3 text-gray-300">📝 Jira Ticket Preview</h3>
+             <div className="flex justify-between items-center mb-3">
+                 <h3 className="text-xl font-semibold text-gray-300">📝 Jira Ticket Preview</h3>
+                 <button 
+                    onClick={handleCopyToClipboard} 
+                    disabled={!jiraPreview || isCopied}
+                    className="px-3 py-1.5 text-sm font-medium rounded-md flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-gray-700 hover:bg-gray-600 text-gray-300"
+                >
+                    {isCopied ? (
+                        <>
+                            <ClipboardCheckIcon className="w-4 h-4 mr-2 text-green-400" />
+                            Copied!
+                        </>
+                    ) : (
+                        <>
+                            <ClipboardIcon className="w-4 h-4 mr-2" />
+                            Copy
+                        </>
+                    )}
+                </button>
+             </div>
              {jiraPreview && (
                  <div className="space-y-4">
                      <input type="text" readOnly value={jiraPreview.summary} className="w-full p-2 bg-gray-900/70 border border-gray-600 rounded-md font-semibold"/>
                      <textarea readOnly value={jiraPreview.description} rows={10} className="w-full p-2 bg-gray-900/70 border border-gray-600 rounded-md font-mono text-sm"/>
                      <button onClick={handleCreateTicket} disabled={isCreatingTicket} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-500 flex items-center">
-                         {isCreatingTicket ? <><Spinner/> Creating...</> : 'Create Jira Ticket'}
+                         {isCreatingTicket ? <><Spinner size="sm" className="mr-2"/> Creating...</> : 'Create Jira Ticket'}
                      </button>
                      {ticketCreationStatus && (
                          <p className={`mt-2 text-sm ${ticketCreationStatus.success ? 'text-green-400' : 'text-red-400'}`}>{ticketCreationStatus.message}</p>

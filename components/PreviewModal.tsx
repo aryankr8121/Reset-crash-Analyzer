@@ -1,12 +1,56 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CrashDataRow } from '../types';
 import { formatJiraIssue } from '../utils/jiraFormatter';
-import { XIcon } from './icons';
+import { XIcon, ClipboardIcon, ClipboardCheckIcon } from './icons';
 
 interface PreviewModalProps {
   rows: CrashDataRow[];
   onClose: () => void;
 }
+
+const PreviewItem: React.FC<{ row: CrashDataRow }> = ({ row }) => {
+    const [isCopied, setIsCopied] = useState(false);
+    const issue = formatJiraIssue(row);
+
+    const handleCopyToClipboard = () => {
+        const textToCopy = `Summary: ${issue.summary}\n\nDescription:\n${issue.description}`;
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        }).catch(err => {
+            console.error('Failed to copy text: ', err);
+        });
+    };
+
+    return (
+        <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+            <div className="flex justify-between items-center mb-2">
+                <h3 className="text-lg font-semibold text-gray-200 truncate pr-4">{issue.summary}</h3>
+                <button 
+                    onClick={handleCopyToClipboard}
+                    disabled={isCopied}
+                    className="px-3 py-1.5 text-xs font-medium rounded-md flex items-center transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed bg-gray-700 hover:bg-gray-600 text-gray-300"
+                >
+                    {isCopied ? (
+                        <>
+                            <ClipboardCheckIcon className="w-4 h-4 mr-2 text-green-400" />
+                            Copied!
+                        </>
+                    ) : (
+                        <>
+                            <ClipboardIcon className="w-4 h-4 mr-2" />
+                            Copy
+                        </>
+                    )}
+                </button>
+            </div>
+            <div className="bg-gray-900 p-3 rounded-md">
+                <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">{issue.description}</pre>
+            </div>
+        </div>
+    );
+};
+
 
 const PreviewModal: React.FC<PreviewModalProps> = ({ rows, onClose }) => {
   return (
@@ -23,17 +67,9 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ rows, onClose }) => {
         </header>
         
         <div className="p-6 overflow-y-auto space-y-6">
-          {rows.map((row) => {
-            const issue = formatJiraIssue(row);
-            return (
-              <div key={row.id} className="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-200 mb-2">{issue.summary}</h3>
-                <div className="bg-gray-900 p-3 rounded-md">
-                  <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">{issue.description}</pre>
-                </div>
-              </div>
-            );
-          })}
+          {rows.map((row) => (
+             <PreviewItem key={row.id} row={row} />
+          ))}
         </div>
 
         <footer className="p-4 border-t border-gray-700 flex-shrink-0 flex justify-end">
