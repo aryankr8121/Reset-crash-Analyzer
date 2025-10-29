@@ -1,0 +1,5 @@
+{
+  "name": "Reset Crash Analyzer",
+  "description": "An intelligent tool to analyze vehicle crash reports from CSV files, find similar existing issues in Jira, and streamline the bug reporting process.",
+  "requestFramePermissions": []
+}
